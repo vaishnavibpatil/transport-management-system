@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { colors, card, button as btn, input as inp } from '../styles/theme'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -14,10 +15,7 @@ export default function Login() {
     setError('')
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     setLoading(false)
 
@@ -31,7 +29,10 @@ export default function Login() {
   return (
     <div style={styles.container}>
       <form onSubmit={handleLogin} style={styles.form}>
+        <div style={styles.logo}>🚚</div>
+
         <h1 style={styles.title}>Transport Management System</h1>
+        <p style={styles.subtitle}>Sign in to continue</p>
 
         <input
           type="email"
@@ -62,46 +63,22 @@ export default function Login() {
 }
 
 const styles = {
+
   container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100vh',
-    background: '#f4f5f7',
+    minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center',
+    background: colors.background, padding: '20px',
   },
   form: {
-    background: '#fff',
-    padding: '40px',
-    borderRadius: '10px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-    width: '320px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '14px',
+    ...card, width: '100%', maxWidth: '360px', padding: '36px',
+    display: 'flex', flexDirection: 'column', gap: '14px',
   },
-  title: {
-    fontSize: '18px',
-    marginBottom: '10px',
-    textAlign: 'center',
-  },
-  input: {
-    padding: '12px',
-    fontSize: '15px',
-    border: '1px solid #ccc',
-    borderRadius: '6px',
-  },
-  button: {
-    padding: '12px',
-    fontSize: '15px',
-    background: '#2563eb',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-  },
+  logo: { fontSize: '40px', textAlign: 'center' },
+  title: { fontSize: '20px', fontWeight: 700, textAlign: 'center', margin: 0, color: colors.textPrimary },
+  subtitle: { textAlign: 'center', color: colors.textSecondary, margin: '0 0 8px', fontSize: '14px' },
+  input: { ...inp },
+  button: { ...btn.primary, marginTop: '6px' },
   error: {
-    color: 'red',
-    fontSize: '13px',
-    margin: 0,
+    color: colors.danger, background: colors.dangerLight, padding: '10px 12px',
+    borderRadius: '8px', fontSize: '13px', margin: 0,
   },
 }

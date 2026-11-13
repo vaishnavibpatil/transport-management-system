@@ -29,3 +29,20 @@ export async function updateTripStageStatus(tripId) {
     await supabase.from('trips').update({ status: newStatus }).eq('id', tripId)
   }
 }
+// If vehicle is paid: Payment Completed. If company balance also received: Trip Completed.
+export async function completeTripIfSettled(tripId) {
+  const { data: payment } = await supabase
+    .from('payments').select('paid').eq('trip_id', tripId).maybeSingle()
+
+  const { data: inland } = await supabase
+    .from('inland_details').select('balance_received').eq('trip_id', tripId).maybeSingle()
+
+  const vehiclePaid = payment?.paid ?? false
+  const inlandReceived = inland?.balance_received ?? false
+
+  if (vehiclePaid && inlandReceived) {
+    await supabase.from('trips').update({ status: 'Trip Completed' }).eq('id', tripId)
+  } else if (vehiclePaid) {
+    await supabase.from('trips').update({ status: 'Payment Completed' }).eq('id', tripId)
+  }
+}

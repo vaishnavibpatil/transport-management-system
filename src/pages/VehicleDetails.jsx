@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { sendWhatsAppMessage } from '../lib/whatsapp'
 import Navbar from '../components/layout/Navbar'
 import { colors, card, button as btn, input as inp } from '../styles/theme'
-import { updateTripStageStatus } from '../utils/tripStatus'
+import { updateTripStageStatus, completeTripIfSettled } from '../utils/tripStatus'
 
 export default function VehicleDetails() {
   const { tripId } = useParams()
@@ -88,10 +88,28 @@ export default function VehicleDetails() {
         .filter(([, amount]) => parseFloat(amount) > 0)
         .map(([type, amount]) => ({ trip_id: tripId, advance_type: type, amount: parseFloat(amount) }))
 
-      if (advanceRows.length > 0) {
+           if (advanceRows.length > 0) {
         await supabase.from('advances').insert(advanceRows)
       }
+
+      // Keep unpaid payment record in sync with edited amounts
+            const autoPaid = remainingAmount <= 0
+      await supabase
+        .from('payments')
+        .update({
+          remaining_amount: remainingAmount,
+          ...(autoPaid && { paid: true, paid_at: new Date().toISOString() }),
+        })
+        .eq('trip_id', tripId)
+        .eq('paid', false)
+
+      if (autoPaid) await completeTripIfSettled(tripId)
+
+      // Keep status in sync after edit
+      await updateTripStageStatus(tripId)
     } else {
+
+
       // Insert new vehicle_details
       const { error: vehicleError } = await supabase.from('vehicle_details').insert({
         trip_id: tripId,
@@ -113,7 +131,7 @@ export default function VehicleDetails() {
         await supabase.from('advances').insert(advanceRows)
       }
 
-           await updateTripStageStatus(tripId)
+      await updateTripStageStatus(tripId)
 
       if (parseFloat(advances.Fuel) > 0) {
         const { data: tripData } = await supabase

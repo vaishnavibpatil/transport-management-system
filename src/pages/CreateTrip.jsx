@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import Navbar from '../components/layout/Navbar'
+import { colors, card, button as btn, input as inp } from '../styles/theme'
 
 const TRUCK_TYPES = ['A1', 'A2', 'A5', 'A8', 'T6', 'T1']
 
@@ -26,20 +27,44 @@ export default function CreateTrip() {
     e.preventDefault()
     setError('')
 
+    const lr = form.lr_number.trim()
+
     // Mandatory field check
-    if (!form.lr_number || !form.trip_date || !form.vehicle_number || !form.party_name || !form.truck_type) {
+
+    if (!lr || !form.trip_date || !form.vehicle_number || !form.party_name || !form.truck_type) {
       setError('Please fill all mandatory fields (marked *)')
       return
     }
 
     setLoading(true)
 
+    // Block duplicate LR number (case-insensitive). Escape LIKE wildcards in the input.
+    const safeLr = lr.replace(/[\\%_]/g, '\\$&')
+    const { data: existing, error: checkError } = await supabase
+      .from('trips')
+      .select('id')
+      .ilike('lr_number', safeLr)
+      .limit(1)
+
+    if (checkError) {
+      setError('Could not check LR number: ' + checkError.message)
+      setLoading(false)
+      return
+    }
+
+    if (existing && existing.length > 0) {
+      setError('LR Number already exists')
+      setLoading(false)
+      return
+    }
+
     const { data: userData } = await supabase.auth.getUser()
 
     const { data, error: insertError } = await supabase
       .from('trips')
       .insert({
-        lr_number: form.lr_number,
+
+        lr_number: lr,
         trip_date: form.trip_date,
         vehicle_number: form.vehicle_number,
         party_name: form.party_name,
@@ -54,7 +79,12 @@ export default function CreateTrip() {
     setLoading(false)
 
     if (insertError) {
-      setError('Failed to create trip: ' + insertError.message)
+      // 23505 = unique violation (fires only once the DB unique index is added later)
+      if (insertError.code === '23505') {
+        setError('LR Number already exists')
+      } else {
+        setError('Failed to create trip: ' + insertError.message)
+      }
       return
     }
 
@@ -66,7 +96,8 @@ export default function CreateTrip() {
     <div>
       <Navbar />
       <div style={styles.container}>
-        <h2>Create New Trip</h2>
+
+        <h2 style={styles.heading}>Create New Trip</h2>
         <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.label}>
             LR Number *
@@ -98,6 +129,7 @@ export default function CreateTrip() {
             </select>
           </label>
 
+
           <label style={styles.label}>
             SS Point (optional)
             <input name="ss_point" value={form.ss_point} onChange={handleChange} style={styles.input} />
@@ -115,13 +147,14 @@ export default function CreateTrip() {
 }
 
 const styles = {
-  container: { padding: '24px', maxWidth: '480px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  label: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '14px', fontWeight: 'bold' },
-  input: { padding: '10px', fontSize: '15px', border: '1px solid #ccc', borderRadius: '6px' },
-  button: {
-    padding: '12px', fontSize: '15px', background: '#2563eb', color: '#fff',
-    border: 'none', borderRadius: '6px', cursor: 'pointer', marginTop: '10px',
+  container: { padding: '28px', maxWidth: '520px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' },
+  heading: { margin: 0, fontSize: '22px', color: colors.textPrimary },
+  form: { ...card, display: 'flex', flexDirection: 'column', gap: '16px' },
+  label: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '14px', fontWeight: 600, color: colors.textPrimary },
+  input: { ...inp },
+  button: { ...btn.primary, marginTop: '6px' },
+  error: {
+    color: colors.danger, background: colors.dangerLight, padding: '10px 12px',
+    borderRadius: '8px', fontSize: '13px', margin: 0,
   },
-  error: { color: 'red', fontSize: '13px', margin: 0 },
 }

@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import Navbar from '../components/layout/Navbar'
 import { useNavigate } from 'react-router-dom'
+import { toLocalDateString } from '../utils/dates'
 
 export default function Dashboard() {
-const navigate = useNavigate()
+  const navigate = useNavigate()
   const [stats, setStats] = useState({
     totalTrips: 0,
     todaysTrips: 0,
@@ -23,23 +24,26 @@ const navigate = useNavigate()
   async function loadStats() {
     setLoading(true)
 
-    const today = new Date().toISOString().split('T')[0] // e.g. "2026-08-14"
+        const today = toLocalDateString()
 
     const [
       { count: totalTrips },
       { count: todaysTrips },
-      { count: pendingPODs },
+      podData,
       { count: pendingPayments },
       { count: completedTrips },
       profitData,
     ] = await Promise.all([
       supabase.from('trips').select('*', { count: 'exact', head: true }),
       supabase.from('trips').select('*', { count: 'exact', head: true }).eq('trip_date', today),
-      supabase.from('trips').select('*', { count: 'exact', head: true }).eq('status', 'POD Pending'),
+      supabase.from('trips').select('id, vehicle_details(id), pods(id)'),
       supabase.from('payments').select('*', { count: 'exact', head: true }).eq('paid', false),
       supabase.from('trips').select('*', { count: 'exact', head: true }).eq('status', 'Trip Completed'),
       supabase.from('trips').select('id, vehicle_details(vehicle_amount), inland_details(company_amount)'),
     ])
+
+    // Pending POD = vehicle details added, no POD uploaded yet
+    const pendingPODs = (podData.data || []).filter((t) => t.vehicle_details && !t.pods).length
 
     let totalProfit = 0
     if (profitData.data) {
@@ -56,7 +60,7 @@ const navigate = useNavigate()
     setStats({
       totalTrips: totalTrips || 0,
       todaysTrips: todaysTrips || 0,
-      pendingPODs: pendingPODs || 0,
+      pendingPODs,
       pendingPayments: pendingPayments || 0,
       completedTrips: completedTrips || 0,
       totalProfit,
@@ -77,10 +81,10 @@ const navigate = useNavigate()
     <div>
       <Navbar />
       <div style={styles.container}>
-                <div style={styles.headerRow}>
+        <div style={styles.headerRow}>
           <h2 style={styles.heading}>Dashboard</h2>
-          
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button onClick={() => navigate('/all-trips')} style={styles.createButton}>
               📋 All Trips
             </button>
@@ -93,7 +97,7 @@ const navigate = useNavigate()
             <button onClick={() => navigate('/search-trip')} style={styles.createButton}>
               🔍 Search Trip
             </button>
-                        <button onClick={() => navigate('/create-trip')} style={styles.createButton}>
+            <button onClick={() => navigate('/create-trip')} style={styles.createButton}>
               + Create Trip
             </button>
             <button onClick={() => navigate('/reports')} style={styles.createButton}>
@@ -105,10 +109,10 @@ const navigate = useNavigate()
           <p>Loading...</p>
         ) : (
           <div style={styles.grid}>
-            {cards.map((card) => (
-              <div key={card.label} style={styles.card}>
-                <p style={styles.cardLabel}>{card.label}</p>
-                <p style={styles.cardValue}>{card.value}</p>
+            {cards.map((c) => (
+              <div key={c.label} style={styles.card}>
+                <p style={styles.cardLabel}>{c.label}</p>
+                <p style={styles.cardValue}>{c.value}</p>
               </div>
             ))}
           </div>

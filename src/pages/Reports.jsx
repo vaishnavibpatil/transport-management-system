@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import Navbar from '../components/layout/Navbar'
 import { colors, card } from '../styles/theme'
+import { toLocalDateString } from '../utils/dates'
 
 function getDateRange(period) {
   const today = new Date()
-  const end = today.toISOString().split('T')[0]
+  const end = toLocalDateString(today)
   let start
 
   if (period === 'daily') {
@@ -14,11 +15,11 @@ function getDateRange(period) {
   } else if (period === 'weekly') {
     const d = new Date(today)
     d.setDate(d.getDate() - 7)
-    start = d.toISOString().split('T')[0]
+    start = toLocalDateString(d)
   } else if (period === 'monthly') {
     const d = new Date(today)
     d.setMonth(d.getMonth() - 1)
-    start = d.toISOString().split('T')[0]
+    start = toLocalDateString(d)
   }
 
   return { start, end }

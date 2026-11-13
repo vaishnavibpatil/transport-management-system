@@ -69,7 +69,7 @@ export default function InlandDetails() {
         return
       }
 
-           await supabase.from('trips').update({ thc_number: thcNumber || null }).eq('id', tripId)
+      await supabase.from('trips').update({ thc_number: thcNumber || null }).eq('id', tripId)
       await updateTripStageStatus(tripId)
     } else {
       const { error: inlandError } = await supabase.from('inland_details').insert({
@@ -85,10 +85,8 @@ export default function InlandDetails() {
         return
       }
 
-      await supabase
-        .from('trips')
-        .update({ thc_number: thcNumber || null, status: 'Inland Details Added' })
-        .eq('id', tripId)
+      await supabase.from('trips').update({ thc_number: thcNumber || null }).eq('id', tripId)
+      await updateTripStageStatus(tripId)
     }
 
     setLoading(false)

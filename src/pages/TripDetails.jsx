@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { sendWhatsAppMessage, sendWhatsAppImage } from '../lib/whatsapp'
+import { completeTripIfSettled } from '../utils/tripStatus'
 import Navbar from '../components/layout/Navbar'
 import { colors, card, button as btn } from '../styles/theme'
 
@@ -60,55 +61,39 @@ export default function TripDetails() {
       .reduce((sum, a) => sum + Number(a.amount), 0)
     const remaining = vehicleAmount - totalAdvanceNow
 
-    await supabase.from('payments').upsert({ trip_id: tripId, remaining_amount: remaining, paid: false })
+    // Auto-close payment when nothing remains
+    const autoPaid = remaining <= 0
+    await supabase.from('payments').upsert({
+      trip_id: tripId,
+      remaining_amount: remaining,
+      paid: autoPaid,
+      paid_at: autoPaid ? new Date().toISOString() : null,
+    })
+    if (autoPaid) await completeTripIfSettled(tripId)
 
     setUploading(false)
     loadTrip()
   }
 
-    async function handlePayRemaining() {
+  async function handlePayRemaining() {
     setProcessingPayment(true)
     await supabase.from('payments').update({ paid: true, paid_at: new Date().toISOString() }).eq('trip_id', tripId)
-    await checkAndCompleteTrip()
+    await completeTripIfSettled(tripId)
     setProcessingPayment(false)
     loadTrip()
   }
 
-    async function handleMarkBalanceReceived() {
+  async function handleMarkBalanceReceived() {
     setMarkingReceived(true)
     await supabase
       .from('inland_details')
       .update({ balance_received: true, balance_received_at: new Date().toISOString() })
       .eq('trip_id', tripId)
-    await checkAndCompleteTrip()
+    await completeTripIfSettled(tripId)
     setMarkingReceived(false)
     loadTrip()
   }
 
-    async function checkAndCompleteTrip() {
-    // Re-fetch the latest state so we're checking real, current values
-    const { data: latestPayment } = await supabase
-      .from('payments')
-      .select('paid')
-      .eq('trip_id', tripId)
-      .maybeSingle()
-
-    const { data: latestInland } = await supabase
-      .from('inland_details')
-      .select('balance_received')
-      .eq('trip_id', tripId)
-      .maybeSingle()
-
-    const vehiclePaid = latestPayment?.paid ?? false
-    const inlandReceived = latestInland?.balance_received ?? false
-
-    // Only mark Trip Completed once BOTH sides are financially closed
-    if (vehiclePaid && inlandReceived) {
-      await supabase.from('trips').update({ status: 'Trip Completed' }).eq('id', tripId)
-    } else if (vehiclePaid) {
-      await supabase.from('trips').update({ status: 'Payment Completed' }).eq('id', tripId)
-    }
-  }
   if (!trip) return <p style={{ padding: '24px' }}>Loading...</p>
 
   const podUploaded = !!trip.pods
@@ -125,7 +110,8 @@ export default function TripDetails() {
         <div style={styles.infoBox}>
           <p><strong>LR Number:</strong> {trip.lr_number}</p>
           <p><strong>Vehicle:</strong> {trip.vehicle_number}</p>
-          <p><strong>Party:</strong> {trip.party_name}</p>
+                    <p><strong>Party:</strong> {trip.party_name}</p>
+          {trip.ss_point && <p><strong>SS Point:</strong> {trip.ss_point}</p>}
           <p><strong>Status:</strong> {trip.status}</p>
         </div>
 
@@ -155,7 +141,7 @@ export default function TripDetails() {
                   <p style={styles.subText}>Remaining Amount: ₹{vehicleRemaining.toLocaleString('en-IN')}</p>
                   <p style={styles.subText}>Payment Status: {payment?.paid ? '✅ Paid' : '⏳ Pending'}</p>
 
-                                    {!payment?.paid && (
+                  {!payment?.paid && (
                     <button onClick={handlePayRemaining} disabled={processingPayment} style={styles.smallButtonPrimary}>
                       {processingPayment ? 'Processing...' : 'Pay Remaining Amount'}
                     </button>
@@ -185,7 +171,7 @@ export default function TripDetails() {
                 Balance Status: {trip.inland_details.balance_received ? '✅ Received' : '⏳ Pending'}
               </p>
 
-                            {!trip.inland_details.balance_received && (
+              {!trip.inland_details.balance_received && (
                 <button onClick={handleMarkBalanceReceived} disabled={markingReceived} style={styles.smallButtonPrimary}>
                   {markingReceived ? 'Marking...' : 'Mark Balance Received'}
                 </button>
